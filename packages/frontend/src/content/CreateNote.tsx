@@ -1,4 +1,5 @@
-import React, { useState, FormEvent } from "react";
+
+import React, { useState, FormEvent, useTransition } from "react";
 import { Form, Button, Alert } from "react-bootstrap";
 import { navigate, RouteComponentProps } from "@reach/router";
 import { GATEWAY_URL } from "../config";
@@ -10,7 +11,7 @@ import { PlayAudioButton } from "./PlayAudioButton";
 const MAX_FILE_SIZE = 2000000;
 
 const CreateNote = (props: RouteComponentProps) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [file, setFile] = useState();
@@ -27,9 +28,8 @@ const CreateNote = (props: RouteComponentProps) => {
       return;
     }
 
-    setIsLoading(true);
-
-    const createNoteURL = `${GATEWAY_URL}notes`;
+    startTransition(async () => {
+        const createNoteURL = `${GATEWAY_URL}notes`;
 
     try {
       // @ts-ignore Argument of type 'undefined' is not assignable to parameter of type 'File'
@@ -41,9 +41,8 @@ const CreateNote = (props: RouteComponentProps) => {
       navigate("/");
     } catch (error) {
       setErrorMsg(`${error.toString()} - ${createNoteURL} - ${noteContent}`);
-    } finally {
-      setIsLoading(false);
-    }
+    } 
+    });
   };
 
   const noteContentAdditionalProps = isRecording || isPlaying ? { disabled: true, value: noteContent } : {};
@@ -90,9 +89,9 @@ const CreateNote = (props: RouteComponentProps) => {
             type="file"
           />
         </Form.Group>
-        <Button type="submit" disabled={!noteContent || isLoading} block>
-          {isLoading ? <ButtonSpinner /> : ""}
-          {isLoading ? "Creating..." : "Create"}
+        <Button type="submit" disabled={!noteContent || isPending} block>
+          {isPending ? <ButtonSpinner /> : ""}
+          {isPending ? "Creating..." : "Create"}
         </Button>
       </form>
     </PageContainer>

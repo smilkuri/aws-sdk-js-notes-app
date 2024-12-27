@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { Button, Alert } from "react-bootstrap";
 import { PlayCircle, StopFill } from "react-bootstrap-icons";
 import { getSynthesizedSpeechUrl } from "../libs/getSynthesizedSpeechUrl";
@@ -11,44 +11,47 @@ const PlayAudioButton = (props: {
 }) => {
   const { disabled, isPlaying, setIsPlaying, noteContent } = props;
   const audioPlayer = useRef<HTMLAudioElement>(null);
-  const [audioUrl, setAudioUrl] = useState("");
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isPending, startTransition] = useTransition();
 
-  const togglePlay = async () => {
+  const togglePlay = () => {
     if (isPlaying) {
       setIsPlaying(false);
       audioPlayer.current?.pause();
       audioPlayer.current?.load();
     } else {
-      setIsPlaying(true);
-      try {
-        const audioUrl = await getSynthesizedSpeechUrl(noteContent);
-        setAudioUrl(audioUrl.toString());
-        audioPlayer.current?.load();
-        audioPlayer.current?.play();
-        audioPlayer.current?.addEventListener("ended", () => {
+      startTransition(async () => {
+        setIsPlaying(true);
+        try {
+          const audioUrl = await getSynthesizedSpeechUrl(noteContent);
+          setAudioUrl(audioUrl.toString());
+          audioPlayer.current?.load();
+          audioPlayer.current?.play();
+          audioPlayer.current?.addEventListener("ended", () => {
+            setIsPlaying(false);
+          });
+        } catch (error) {
           setIsPlaying(false);
-        });
-      } catch (error) {
-        setIsPlaying(false);
-        audioPlayer.current?.pause();
-        audioPlayer.current?.load();
-        console.log(error);
-        setErrorMsg(`${error.toString()}`);
-      }
+          audioPlayer.current?.pause();
+          audioPlayer.current?.load();
+          console.log(error);
+          setErrorMsg(`${error.toString()}`);
+        }
+      });
     }
   };
 
   return (
     <>
       {errorMsg && <Alert variant="danger">{errorMsg}</Alert>}
-      <audio ref={audioPlayer} src={audioUrl}></audio>
+      {audioUrl && <audio ref={audioPlayer} src={audioUrl}></audio>} {/* Render only when audioUrl exists */}
       <Button
         className="mx-2"
         variant={isPlaying ? "primary" : "outline-secondary"}
         size="sm"
         onClick={togglePlay}
-        disabled={disabled}
+        disabled={disabled || isPending} // Disable the button while the transition is pending
       >
         {isPlaying ? <StopFill /> : <PlayCircle />}
       </Button>

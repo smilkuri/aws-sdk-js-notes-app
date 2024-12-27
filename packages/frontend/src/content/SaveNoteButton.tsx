@@ -1,40 +1,42 @@
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import { Button, Alert } from "react-bootstrap";
 import { GATEWAY_URL } from "../config";
 import { navigate } from "@reach/router";
 import { ButtonSpinner } from "../components";
 
 const SaveNoteButton = (props: { noteId: string; noteContent: string }) => {
-  const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isPending, startTransition] = useTransition();
 
-  const handleSave = async (event: any) => {
+  const handleSave = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    setIsSaving(true);
 
-    const { noteId, noteContent } = props;
-    const updateNoteURL = `${GATEWAY_URL}notes/${noteId}`;
+    startTransition(async () => {
+      const { noteId, noteContent } = props;
+      const updateNoteURL = `${GATEWAY_URL}notes/${noteId}`;
 
-    try {
-      await fetch(updateNoteURL, {
-        method: "PUT",
-        body: JSON.stringify({ content: noteContent }),
-      });
-      navigate("/");
-    } catch (error) {
-      console.log(error);
-      setErrorMsg(`${error.toString()} - ${updateNoteURL} - ${noteContent}`);
-    } finally {
-      setIsSaving(false);
-    }
+      try {
+        await fetch(updateNoteURL, {
+          method: "PUT",
+          body: JSON.stringify({ content: noteContent }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        navigate("/");
+      } catch (error) {
+        console.error(error);
+        setErrorMsg(`${error.toString()} - ${updateNoteURL} - ${noteContent}`);
+      }
+    });
   };
 
   return (
     <>
       {errorMsg && <Alert variant="danger">{errorMsg}</Alert>}
-      <Button disabled={isSaving} onClick={handleSave} block>
-        {isSaving ? <ButtonSpinner /> : ""}
-        {isSaving ? "Saving..." : "Save"}
+      <Button disabled={isPending} onClick={handleSave} block>
+        {isPending ? <ButtonSpinner /> : ""}
+        {isPending ? "Saving..." : "Save"}
       </Button>
     </>
   );

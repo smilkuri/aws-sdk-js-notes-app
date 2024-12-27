@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import { Button, Alert } from "react-bootstrap";
 import { MicFill, MicMute } from "react-bootstrap-icons";
 
@@ -15,8 +15,8 @@ type MessageDataType = {
 const RecordAudioButton = (props: {
   disabled: boolean;
   isRecording: boolean;
-  setIsRecording: Function;
-  setNoteContent: Function;
+  setIsRecording: React.Dispatch<React.SetStateAction<boolean>>;
+  setNoteContent: React.Dispatch<React.SetStateAction<string>>;
 }) => {
   const { disabled, isRecording, setIsRecording, setNoteContent } = props;
 
@@ -26,6 +26,7 @@ const RecordAudioButton = (props: {
   let mediaStreamSource: MediaStreamAudioSourceNode;
 
   const [errorMsg, setErrorMsg] = useState("");
+  const [isPending, startTransition] = useTransition();
 
   const startRecording = async () => {
     setIsRecording(true);
@@ -53,7 +54,7 @@ const RecordAudioButton = (props: {
           },
         });
         mediaRecorder.port.onmessageerror = (error) => {
-          console.log(`Error receving message from worklet ${error}`);
+          console.error(`Error receiving message from worklet: ${error}`);
           setErrorMsg(`${error.toString()}`);
         };
       }
@@ -65,7 +66,7 @@ const RecordAudioButton = (props: {
       const audioDataIterator = pEventIterator<"message", MessageEvent<MessageDataType>>(mediaRecorder.port, "message");
       await streamAudioToWebSocket(audioDataIterator);
     } catch (error: unknown) {
-      console.log(error);
+      console.error(error);
       setErrorMsg(`${error.toString()}`);
     } finally {
       await stopRecording();
@@ -84,12 +85,14 @@ const RecordAudioButton = (props: {
     }
   };
 
-  const toggleTrascription = async () => {
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
+  const toggleTranscription = () => {
+    startTransition(async () => {
+      if (isRecording) {
+        await stopRecording();
+      } else {
+        await startRecording();
+      }
+    });
   };
 
   const streamAudioToWebSocket = async (audioDataIterator: AsyncIterableIterator<MessageEvent<MessageDataType>>) => {
@@ -116,12 +119,10 @@ const RecordAudioButton = (props: {
               const { Transcript } = results[0].Alternatives[0];
 
               const transcriptionToRemove = partialTranscription;
-              // fix encoding for accented characters.
               const transcription = decodeURIComponent(escape(Transcript || ""));
 
-              setNoteContent((noteContent: any) => noteContent.replace(transcriptionToRemove, "") + transcription);
+              setNoteContent((noteContent) => noteContent.replace(transcriptionToRemove, "") + transcription);
 
-              // if this transcript segment is final, reset transcription
               if (!results[0].IsPartial) {
                 partialTranscription = "";
               } else {
@@ -140,8 +141,8 @@ const RecordAudioButton = (props: {
       <Button
         variant={isRecording ? "primary" : "outline-secondary"}
         size="sm"
-        onClick={toggleTrascription}
-        disabled={disabled}
+        onClick={toggleTranscription}
+        disabled={disabled || isPending} // Disable button during transitions
       >
         {isRecording ? <MicFill /> : <MicMute />}
       </Button>
